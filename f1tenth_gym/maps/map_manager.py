@@ -10,6 +10,18 @@ MAP_DICT = {
     19: 'YasMarina', 20: 'Zandvoort'
 }
 
+## 8:2で分割した場合の学習用マップ
+TRAIN_MAPS = [
+    'Austin', 'Budapest', 'Hockenheim', 'Melbourne', 'MexicoCity',
+    'MoscowRaceway', 'Nuerburgring', 'Oschersleben', 'Sakhir', 'Sepang',
+    'Silverstone', 'Sochi', 'Spa', 'Spielberg', 'YasMarina'
+]
+
+TEST_MAPS = [
+    'BrandsHatch', 'Catalunya', 'IMS', 'Monza', 'SaoPaulo', 'Zandvoort'
+]
+
+
 class MapManager:
     def __init__(
         self,
