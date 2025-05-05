@@ -1,0 +1,13 @@
+data:
+  root_dir: ./datasets/              # HDF5のルートディレクトリ
+model:
+  num_beams: 1080
+  latent_dim: 32
+train:
+  epochs: 50
+  batch_size: 64
+  lr: 1e-3
+  beta: 1e-3                     # KL重み
+  num_workers: 4
+  ckpt_dir: ./ckpts/vae/          # チェックポイントの保存先
+  log_dir: ./logs/train_vae/
