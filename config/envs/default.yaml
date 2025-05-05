@@ -2,11 +2,11 @@ map:
     name: IMS ## マップの名前
     ext: .png ## マップの拡張子
     line_type: center ## center race
-    speed: 5.0 ## waypointの速度
+    speed: 10.0 ## waypointの速度
     downsample: 1 ## マップのダウンサンプリング
 
     ## planner用の設定
-    use_dynamic_speed: false ## 動的な速度を使用するかどうか
+    use_dynamic_speed: true ## 動的な速度を使用するかどうか
     a_lat_max: 1.0 ## 最大横加速度
     smooth_sigma: 3 ## スムージングのsigma
 

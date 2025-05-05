@@ -1,0 +1,12 @@
+# config/collect_data.yaml に追加
+defaults:
+  - vehicle: default
+  - envs: default 
+  - planner: pure_pursuit
+
+
+output_dir: ./datasets/
+num_episodes: 20
+num_steps: 15000
+render: false
+render_mode: human
