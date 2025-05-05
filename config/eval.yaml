@@ -1,0 +1,21 @@
+# config/collect_data.yaml に追加
+defaults:
+  - vehicle: default
+  - envs: default 
+
+vae:
+  ckpt: ???
+  latent_dim: 32
+
+model:
+  waypoint_dim: 30
+  action_dim: 2
+  lstm_hidden: 128
+  lstm_layers: 1
+  path: ???
+
+num_beams: 1080
+num_waypoints: 10
+steer_range: 0.4
+speed_range: 10.0
+max_scan_range: 30.0
