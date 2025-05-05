@@ -8,6 +8,9 @@ data:
   seq_len: 8
   batch_size: 32
   num_workers: 4
+  max_scan_range: 30.0
+  speed_range: 10.0
+  steer_range: 0.4
 
 # モデル・VAE
 vae:

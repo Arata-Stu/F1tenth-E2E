@@ -63,14 +63,11 @@ class H5SequenceDataset(Dataset):
     HDF5 ファイル群から時系列長 seq_len のシーケンスを
     スライディングウィンドウでサンプリングする Dataset
 
-    waypoints は HDF5 上で shape=(L, N, 2) として保存されている想定で，
-    __getitem__ で (T, N, 2)→(T, N*2) に flatten します。
+    waypoints は HDF5 上で shape=(L, N, 3) として保存されている想定で，
+    __getitem__ で (T, N, 3)→(T, N*3) に flatten します。
+    さらに positions (T,2) を「現在位置」として返します。
     """
     def __init__(self, root_dir: str, seq_len: int):
-        """
-        root_dir: データが {run_id}/{map_name}/*.h5 に入っているフォルダ
-        seq_len:  サンプルの時系列長 T
-        """
         self.seq_len = seq_len
         self.files = sorted(glob.glob(os.path.join(root_dir, "*", "*.h5")))
         self.index_map = []
@@ -87,18 +84,20 @@ class H5SequenceDataset(Dataset):
         fi, start = self.index_map[idx]
         path = self.files[fi]
         with h5py.File(path, 'r') as f:
-            scans    = f['scans'][start:start+self.seq_len]        # (T, num_beams)
-            way_raw  = f['waypoints'][start:start+self.seq_len]    # (T, N, 3)
-            prev_act = f['prev_actions'][start:start+self.seq_len] # (T, 2)
-            actions  = f['actions'][start:start+self.seq_len]      # (T, 2)
+            scans    = f['scans'][start:start+self.seq_len]       # (T, num_beams)
+            way_raw  = f['waypoints'][start:start+self.seq_len]   # (T, N, 3)
+            prev_act = f['prev_actions'][start:start+self.seq_len]# (T, 2)
+            actions  = f['actions'][start:start+self.seq_len]     # (T, 2)
+            positions= f['positions'][start:start+self.seq_len]   # (T, 2)
 
         # waypoints を flatten: (T, N, 3) → (T, N*3)
         N = way_raw.shape[1]
         waypts = way_raw.reshape(self.seq_len, N * 3)
 
         return (
-            torch.from_numpy(scans).float(),   # (T, num_beams)
-            torch.from_numpy(waypts).float(),  # (T, N*3)=>(T,30)
-            torch.from_numpy(prev_act).float(),# (T, 2)
-            torch.from_numpy(actions).float()  # (T, 2)
+            torch.from_numpy(scans).float(),     # (T, num_beams)
+            torch.from_numpy(waypts).float(),    # (T, N*3)
+            torch.from_numpy(prev_act).float(),  # (T, 2)
+            torch.from_numpy(actions).float(),   # (T, 2)
+            torch.from_numpy(positions).float()  # (T, 2) ← 追加
         )
