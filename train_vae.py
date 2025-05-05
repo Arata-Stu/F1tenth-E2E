@@ -27,7 +27,7 @@ def main(cfg: DictConfig):
     # モデル初期化
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     vae = LidarVAE(
-        num_beams=cfg.model.num_beams,
+        lidar_dim=cfg.model.num_beams,
         latent_dim=cfg.model.latent_dim
     ).to(device)
     optimizer = torch.optim.Adam(vae.parameters(), lr=cfg.train.lr)
@@ -43,7 +43,7 @@ def main(cfg: DictConfig):
         # tqdm でプログレスバー
         pbar = tqdm(loader, desc=f"Epoch {epoch+1}/{cfg.train.epochs}", unit="batch")
         for scans in pbar:
-            scans = scans.to(device)
+            scans = scans.to(device) / 30.0
             recon, mu, logvar = vae(scans)
             # 再構成損失
             loss_recon = F.mse_loss(recon, scans)

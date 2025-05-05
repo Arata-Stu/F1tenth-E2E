@@ -10,3 +10,5 @@ num_episodes: 20
 num_steps: 15000
 render: false
 render_mode: human
+
+num_beams: 1080
