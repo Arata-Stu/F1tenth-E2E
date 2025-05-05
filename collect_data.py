@@ -94,8 +94,8 @@ def main(cfg: DictConfig):
         )
         # ← 追加：waypoints データセット
         wpt_dset = f.create_dataset(
-            'waypoints', shape=(0, num_waypoints, 2), maxshape=(None, num_waypoints, 2),
-            dtype='float32', chunks=(1, num_waypoints, 2),
+            'waypoints', shape=(0, num_waypoints, 3), maxshape=(None, num_waypoints, 3),
+            dtype='float32', chunks=(1, num_waypoints, 3),
             **hdf5plugin.Blosc(cname='zstd', clevel=5, shuffle=hdf5plugin.Blosc.SHUFFLE)
         )
         prev_dset = f.create_dataset(
@@ -120,13 +120,13 @@ def main(cfg: DictConfig):
             # MapManager のメソッドを使って将来の点を取る
             wpts = map_manager.get_future_waypoints(
                 current_pos, num_points=num_waypoints
-            ).astype('float32')  # (N,2)
+            ).astype('float32')  # (N,3)
             # 足りない場合は最後の点をパディング
             if wpts.shape[0] < num_waypoints:
                 pad = np.repeat(wpts[-1][None, :], num_waypoints - wpts.shape[0], axis=0)
                 wpts = np.vstack([wpts, pad])
-            # バッチ次元追加 → (1, N, 2)
-            wpts = wpts.reshape(1, num_waypoints, 2)
+            # バッチ次元追加 → (1, N, 3)
+            wpts = wpts.reshape(1, num_waypoints, 3)
             # ―――――――――――――――――――――――
 
             # 各データをリサイズ＆保存

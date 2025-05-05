@@ -18,7 +18,7 @@ vae:
 model:
   lstm_hidden: 128
   lstm_layers: 1
-  waypoint_dim: 20
+  waypoint_dim: 30
   action_dim: 2
 
 # 学習設定

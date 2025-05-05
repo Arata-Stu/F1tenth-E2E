@@ -88,17 +88,17 @@ class H5SequenceDataset(Dataset):
         path = self.files[fi]
         with h5py.File(path, 'r') as f:
             scans    = f['scans'][start:start+self.seq_len]        # (T, num_beams)
-            way_raw  = f['waypoints'][start:start+self.seq_len]    # (T, N, 2)
+            way_raw  = f['waypoints'][start:start+self.seq_len]    # (T, N, 3)
             prev_act = f['prev_actions'][start:start+self.seq_len] # (T, 2)
             actions  = f['actions'][start:start+self.seq_len]      # (T, 2)
 
-        # waypoints を flatten: (T, N, 2) → (T, N*2)
+        # waypoints を flatten: (T, N, 3) → (T, N*3)
         N = way_raw.shape[1]
-        waypts = way_raw.reshape(self.seq_len, N * 2)
+        waypts = way_raw.reshape(self.seq_len, N * 3)
 
         return (
             torch.from_numpy(scans).float(),   # (T, num_beams)
-            torch.from_numpy(waypts).float(),  # (T, N*2)=>(T,20)
+            torch.from_numpy(waypts).float(),  # (T, N*3)=>(T,30)
             torch.from_numpy(prev_act).float(),# (T, 2)
             torch.from_numpy(actions).float()  # (T, 2)
         )
