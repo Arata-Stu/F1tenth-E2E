@@ -50,12 +50,19 @@ def main(cfg: DictConfig):
     num_episodes = cfg.num_episodes
     num_steps = cfg.num_steps
 
+    # --- マップごとの出現回数カウンタを用意 ---
+    map_counters = {m: 0 for m in MAP_DICT.values()}
+
     for ep in range(num_episodes):
         # マップ選択・リセット
         map_id = ep % len(MAP_DICT)
         name = MAP_DICT[map_id]
         env.update_map(map_name=name, map_ext=map_cfg.ext)
         obs, info = env.reset()
+
+        # このマップの出現回数を取得してインクリメント
+        count = map_counters[name]
+        map_counters[name] += 1
 
         # 初期値準備
         prev_action = np.zeros((1, 2), dtype='float32')
@@ -67,8 +74,8 @@ def main(cfg: DictConfig):
         ep_dir = os.path.join(out_root, name)
         os.makedirs(ep_dir, exist_ok=True)
 
-        # HDF5 ファイル作成
-        filename = f"{name}_speed{map_cfg.speed}_look{lookahead}_ep{ep}.h5"
+        # HDF5 ファイル作成（マップごとのカウントで一意化）
+        filename = f"{name}_speed{map_cfg.speed}_look{lookahead}_run{count}.h5"
         out_path = os.path.join(ep_dir, filename)
         f = h5py.File(out_path, 'w')
 
