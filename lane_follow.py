@@ -2,11 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import hydra
 from omegaconf import DictConfig, OmegaConf
-from f1tenth_gym.maps.map_manager import MapManager
+from f1tenth_gym.maps.map_manager import MapManager, MAP_DICT
 from f1tenth_gym.f110_env import F110Env
 from src.envs.wrapper import F110Wrapper
 from src.planner.purePursuit import PurePursuitPlanner
-from f1tenth_gym.maps.map_manager import MAP_DICT
 
 @hydra.main(config_path="config", config_name="lane_follow", version_base="1.2")
 def main(cfg: DictConfig):
@@ -17,13 +16,21 @@ def main(cfg: DictConfig):
     if cfg.visualize_lidar:
         plt.ion()
         fig = plt.figure(figsize=(6,6))
-        ax = fig.add_subplot(111, polar=True)
-        line, = ax.plot([], [], lw=2)
-        ax.set_ylim(0, cfg.max_lidar_range)
+        ax_lidar = fig.add_subplot(211, polar=True)
+        line, = ax_lidar.plot([], [], lw=2)
+        ax_lidar.set_ylim(0, cfg.max_lidar_range)
+    # --- Matplotlib ウェイポイント可視化設定 ---
+    if cfg.get('visualize_waypoints', False):
+        plt.ion()
+        fig_wp = plt.figure(figsize=(6,6))
+        ax_wp = fig_wp.add_subplot(212)
+        ax_wp.set_aspect('equal')
+        ax_wp.set_xlabel('X [m]')
+        ax_wp.set_ylabel('Y [m]')
+        num_future = cfg.get('num_future_waypoints', 10)
+
     # --- MapManager & 環境初期化 ---
     map_cfg = cfg.envs.map
-    
-
     map_manager = MapManager(
         map_name=MAP_DICT[0],
         map_ext=map_cfg.ext,
@@ -60,7 +67,7 @@ def main(cfg: DictConfig):
         obs, info = env.reset()
         terminated = truncated = False
 
-        # メインループ：センサ可視化 + 環境描画
+        # メインループ：センサ可視化 + ウェイポイント可視化 + 環境描画
         while not (terminated or truncated):
             # アクション計算
             steer, speed_cmd = planner.plan(obs, gain=cfg.planner.gain)
@@ -70,18 +77,28 @@ def main(cfg: DictConfig):
             next_obs, reward, terminated, truncated, info = env.step(action)
 
             if cfg.visualize_lidar:
-                scan   = obs["scans"][0]
+                scan = obs["scans"][0]
                 angles = np.linspace(-cfg.lidar_fov, cfg.lidar_fov, cfg.num_beams)
                 line.set_data(angles, scan)
-                plt.pause(0.0001)
+
+            if cfg.get('visualize_waypoints', False):
+                current_pos = info['current_pos']
+                future = map_manager.get_future_waypoints(current_pos, num_points=num_future)
+                xs, ys = future[:,0], future[:,1]
+                ax_wp.clear()
+                ax_wp.plot(xs, ys, marker='o', linestyle='-')
+                ax_wp.scatter(current_pos[0], current_pos[1], marker='x')
+
+            plt.pause(0.0001)
 
             # Gym 環境可視化
-            env.render(mode=cfg.render_mode) if cfg.render_mode else env.render()
+            if cfg.render:
+                env.render(mode=cfg.render_mode)
+            
 
             obs = next_obs
 
         print(f"マップ『{map_name}』終了  terminated={terminated}, truncated={truncated}")
-        
 
 if __name__ == "__main__":
     main()

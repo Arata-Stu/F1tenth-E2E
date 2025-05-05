@@ -14,6 +14,7 @@ render: True
 render_mode: human ## human or human_fast
 
 visualize_lidar: false  # LiDAR 可視化を有効にするか
+visualize_waypoints: true  # ウェイポイントの可視化を有効にするか
 
 hydra:
   run:
