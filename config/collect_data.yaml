@@ -12,3 +12,4 @@ render: false
 render_mode: human
 
 num_beams: 1080
+num_waypoints; 10

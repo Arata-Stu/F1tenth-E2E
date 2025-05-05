@@ -16,12 +16,12 @@ def main(cfg: DictConfig):
 
     # 実行ごとに固有のランIDディレクトリを作成
     base_out = cfg.output_dir
-    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_id   = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_root = os.path.join(base_out, run_id)
     os.makedirs(out_root, exist_ok=True)
 
     # --- 環境とプランナーの初期化 ---
-    map_cfg = cfg.envs.map
+    map_cfg     = cfg.envs.map
     map_manager = MapManager(
         map_name=MAP_DICT[0],
         map_ext=map_cfg.ext,
@@ -47,8 +47,10 @@ def main(cfg: DictConfig):
     render_flag = cfg.render
     render_mode = cfg.render_mode
 
-    num_episodes = cfg.num_episodes
-    num_steps = cfg.num_steps
+    num_episodes  = cfg.num_episodes
+    num_steps     = cfg.num_steps
+    # ウェイポイントの数（config に num_waypoints=None ならデフォルト10）
+    num_waypoints = cfg.get('num_waypoints', 10)
 
     # --- マップごとの出現回数カウンタを用意 ---
     map_counters = {m: 0 for m in MAP_DICT.values()}
@@ -56,7 +58,7 @@ def main(cfg: DictConfig):
     for ep in range(num_episodes):
         # マップ選択・リセット
         map_id = ep % len(MAP_DICT)
-        name = MAP_DICT[map_id]
+        name   = MAP_DICT[map_id]
         env.update_map(map_name=name, map_ext=map_cfg.ext)
         obs, info = env.reset()
 
@@ -67,8 +69,8 @@ def main(cfg: DictConfig):
         # 初期値準備
         prev_action = np.zeros((1, 2), dtype='float32')
         current_pos = info.get('current_pos', np.array([0.0, 0.0], dtype='float32'))
-        idx = 0
-        truncated = False
+        idx         = 0
+        truncated   = False
 
         # エピソード用出力ディレクトリ
         ep_dir = os.path.join(out_root, name)
@@ -79,21 +81,31 @@ def main(cfg: DictConfig):
         out_path = os.path.join(ep_dir, filename)
         f = h5py.File(out_path, 'w')
 
-        # データセット定義 (時系列データ保存用)
+        # データセット定義
         pos_dset = f.create_dataset(
-            'positions', shape=(0, 2), maxshape=(None, 2), dtype='float32', chunks=(1, 2),
+            'positions', shape=(0, 2), maxshape=(None, 2),
+            dtype='float32', chunks=(1, 2),
             **hdf5plugin.Blosc(cname='zstd', clevel=5, shuffle=hdf5plugin.Blosc.SHUFFLE)
         )
         scans_dset = f.create_dataset(
-            'scans', shape=(0, cfg.num_beams), maxshape=(None, cfg.num_beams), dtype='float32', chunks=(1, cfg.num_beams),
+            'scans', shape=(0, cfg.num_beams), maxshape=(None, cfg.num_beams),
+            dtype='float32', chunks=(1, cfg.num_beams),
+            **hdf5plugin.Blosc(cname='zstd', clevel=5, shuffle=hdf5plugin.Blosc.SHUFFLE)
+        )
+        # ← 追加：waypoints データセット
+        wpt_dset = f.create_dataset(
+            'waypoints', shape=(0, num_waypoints, 2), maxshape=(None, num_waypoints, 2),
+            dtype='float32', chunks=(1, num_waypoints, 2),
             **hdf5plugin.Blosc(cname='zstd', clevel=5, shuffle=hdf5plugin.Blosc.SHUFFLE)
         )
         prev_dset = f.create_dataset(
-            'prev_actions', shape=(0, 2), maxshape=(None, 2), dtype='float32', chunks=(1, 2),
+            'prev_actions', shape=(0, 2), maxshape=(None, 2),
+            dtype='float32', chunks=(1, 2),
             **hdf5plugin.Blosc(cname='zstd', clevel=5, shuffle=hdf5plugin.Blosc.SHUFFLE)
         )
         actions_dset = f.create_dataset(
-            'actions', shape=(0, 2), maxshape=(None, 2), dtype='float32', chunks=(1, 2),
+            'actions', shape=(0, 2), maxshape=(None, 2),
+            dtype='float32', chunks=(1, 2),
             **hdf5plugin.Blosc(cname='zstd', clevel=5, shuffle=hdf5plugin.Blosc.SHUFFLE)
         )
 
@@ -102,12 +114,25 @@ def main(cfg: DictConfig):
             # PurePursuit で行動計算
             steer, speed = planner.plan(obs, gain=cfg.planner.gain)
             action = np.array([steer, speed], dtype='float32').reshape(1, 2)
-            scan = obs['scans'][0].astype('float32').reshape(1, cfg.num_beams)
+            scan   = obs['scans'][0].astype('float32').reshape(1, cfg.num_beams)
+
+            # --- ここからウェイポイント取得＆整形 ---
+            # MapManager のメソッドを使って将来の点を取る
+            wpts = map_manager.get_future_waypoints(
+                current_pos, num_points=num_waypoints
+            ).astype('float32')  # (N,2)
+            # 足りない場合は最後の点をパディング
+            if wpts.shape[0] < num_waypoints:
+                pad = np.repeat(wpts[-1][None, :], num_waypoints - wpts.shape[0], axis=0)
+                wpts = np.vstack([wpts, pad])
+            # バッチ次元追加 → (1, N, 2)
+            wpts = wpts.reshape(1, num_waypoints, 2)
+            # ―――――――――――――――――――――――
 
             # 各データをリサイズ＆保存
             for dset, data in zip(
-                [pos_dset, scans_dset, prev_dset, actions_dset],
-                [current_pos.reshape(1, 2), scan, prev_action, action]
+                [pos_dset, scans_dset, wpt_dset, prev_dset, actions_dset],
+                [current_pos.reshape(1, 2), scan, wpts, prev_action, action]
             ):
                 dset.resize(idx + 1, axis=0)
                 dset[idx] = data
@@ -123,10 +148,10 @@ def main(cfg: DictConfig):
                 break
 
             # 次ステップ準備
-            obs = next_obs
+            obs         = next_obs
             prev_action = action
             current_pos = info.get('current_pos', current_pos)
-            idx += 1
+            idx        += 1
 
             # レンダリング
             if render_flag:
