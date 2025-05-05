@@ -25,6 +25,7 @@ model:
 train:
   epochs: 20
   lr: 1e-4
+  log_dir: "logs/train_teacher/"  # ログ出力先
 
 # 出力
 output:

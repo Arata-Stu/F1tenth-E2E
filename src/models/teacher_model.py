@@ -4,20 +4,20 @@ import torch.nn as nn
 class TeacherModel(nn.Module):
     def __init__(
         self,
-        vae_encoder,      # 学習済み VAE の encoder
+        vae_encoder,      # 学習済み LidarVAE の encoder 部分
         latent_dim,       # VAE の潜在次元
-        waypoint_dim=20,  # flatten 後のウエイポイント次元 (例: 10点×2次元=20)
-        action_dim=2,     # アクション次元
-        lstm_hidden=128,  # LSTM の隠れ状態次元
+        waypoint_dim=30,  # 10点×(x,y,速度)=30
+        action_dim=2,     # 出力次元
+        lstm_hidden=128,
         lstm_layers=1
     ):
         super().__init__()
-        # 1) VAE エンコーダを固定
+        # VAE エンコーダを固定
         self.encoder = vae_encoder
         for p in self.encoder.parameters():
             p.requires_grad = False
 
-        # 2) LSTM: 入力は latent_dim のみ
+        # LSTM: 入力は latent_dim のみ
         self.lstm = nn.LSTM(
             input_size=latent_dim,
             hidden_size=lstm_hidden,
@@ -25,12 +25,10 @@ class TeacherModel(nn.Module):
             batch_first=True
         )
 
-        # 3) FC: LSTM の出力 + waypoint + prev_action を結合してアクション出力
-        self.waypoint_dim = waypoint_dim
-        self.action_dim = action_dim
-        fc_in_dim = lstm_hidden + waypoint_dim + action_dim
+        # FC: LSTM出力 + waypoint_dim + action_dim を結合
+        fc_in = lstm_hidden + waypoint_dim + action_dim
         self.fc = nn.Sequential(
-            nn.Linear(fc_in_dim, 64),
+            nn.Linear(fc_in, 64),
             nn.ReLU(inplace=True),
             nn.Linear(64, action_dim)
         )
@@ -38,31 +36,30 @@ class TeacherModel(nn.Module):
     def forward(self, scans, waypoints, prev_actions, hidden=None):
         """
         scans:        Tensor (B, T, num_beams)
-        waypoints:    Tensor (B, T, N, 2)  または  (B, T, waypoint_dim)
-        prev_actions: Tensor (B, T, action_dim)
-        hidden:       (h0, c0) optional
+        waypoints:    Tensor (B, T, 30)
+        prev_actions: Tensor (B, T, 2)
         """
         B, T, _ = scans.size()
+        # 1) flatten scans → (B*T, num_beams)
+        scans_flat = scans.view(-1, scans.size(-1))
 
-        # --- 1) 各時刻 LiDAR → 潜在 z_t ---
-        scans_flat = scans.view(-1, scans.size(-1))   # (B*T, num_beams)
+        # 2) VAE encode → mu, logvar
         with torch.no_grad():
-            z_flat = self.encoder.encode(scans_flat)  # (B*T, latent_dim)
-        z = z_flat.view(B, T, -1)                    # (B, T, latent_dim)
+            mu, logvar = self.encoder.encode(scans_flat)
+            # reparameterize で z_flat を得る
+            z_flat = self.encoder.reparameterize(mu, logvar)
+        # (B*T, latent_dim) → (B, T, latent_dim)
+        z = z_flat.view(B, T, -1)
 
-        # --- 2) LSTM に z シーケンスを入力 ---
-        lstm_out, _ = self.lstm(z, hidden)           # (B, T, lstm_hidden)
+        # 3) LSTM に通す
+        lstm_out, _ = self.lstm(z, hidden)  # (B, T, lstm_hidden)
 
-        # --- 3) waypoints が4次元なら flatten ---
-        if waypoints.dim() == 4:
-            # waypoints: (B, T, N, 2) → (B, T, N*2)
-            N = waypoints.size(2)
-            waypoints = waypoints.view(B, T, N * 2)
-
-        # --- 4) 各時刻で h_t, waypoint_t, prev_action_t を結合 ---
-        #    (B, T, lstm_hidden + waypoint_dim + action_dim)
+        # 4) 各ステップで結合
+        #    lstm_out:   (B, T, lstm_hidden)
+        #    waypoints:  (B, T, waypoint_dim)
+        #    prev_actions:(B, T, action_dim)
         combined = torch.cat([lstm_out, waypoints, prev_actions], dim=-1)
 
-        # --- 5) FC でアクション回帰 ---
-        actions_pred = self.fc(combined)             # (B, T, action_dim)
+        # 5) FC でアクション予測
+        actions_pred = self.fc(combined)    # (B, T, action_dim)
         return actions_pred
