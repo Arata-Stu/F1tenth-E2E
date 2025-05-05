@@ -47,8 +47,13 @@ def evaluate(cfg: DictConfig):
         lstm_hidden=cfg.model.lstm_hidden,
         lstm_layers=cfg.model.lstm_layers
     ).to(device)
-    model_ckpt = torch.load(cfg.model.path, map_location=device)
-    model.load_state_dict(model_ckpt)
+    ckpt = torch.load(cfg.model.path, map_location=device)
+    # Extract model_state_dict if present
+    if 'model_state_dict' in ckpt:
+        state_dict = ckpt['model_state_dict']
+    else:
+        state_dict = ckpt
+    model.load_state_dict(state_dict)
     model.eval()
 
     # --- 評価ループ ---
@@ -85,8 +90,8 @@ def evaluate(cfg: DictConfig):
             pred = pred_norm.squeeze().cpu().numpy()
             action = convert_action(pred, cfg.steer_range, cfg.speed_range)
 
-            # 環境ステップ
-            obs, reward, terminated, truncated, info = env.step(action.reshape(1, 2))
+            action_np = np.array(action, dtype=np.float32).reshape(1, 2)
+            obs, reward, terminated, truncated, info = env.step(action_np)
             if cfg.render:
                 env.render()
             total_reward += reward
