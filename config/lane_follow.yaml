@@ -1,0 +1,20 @@
+defaults:
+  - vehicle: default
+  - envs: default 
+  - planner: pure_pursuit
+
+num_episodes: ???
+num_steps: 10000
+
+max_lidar_range: 30.0
+num_beams: 1080
+lidar_fov: 2.35
+
+render: True
+render_mode: human ## human or human_fast
+
+visualize_lidar: false  # LiDAR 可視化を有効にするか
+
+hydra:
+  run:
+    dir: ./outputs/lane_follow/${now:%Y-%m-%d}/${now:%H-%M-%S}

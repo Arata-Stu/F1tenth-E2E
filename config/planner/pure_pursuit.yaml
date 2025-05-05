@@ -1,0 +1,4 @@
+wheelbase: 0.33
+lookahead: 0.5
+gain: 0.5
+max_reacquire: 20.0
